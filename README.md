@@ -51,7 +51,7 @@ Agent B    Agent C
 
 ## 📋 Implementation Status
 
-**Current Status**: Planning Phase  
+**Current Status**: Implementation Complete ✅  
 **Target Version**: v1.0.0-a2a  
 **Dependencies**: Google A2A Framework, LangChain AgentExecutor
 
@@ -72,11 +72,49 @@ git clone <repository-url>
 cd kpmg_a2a_audit_compliance
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -e .
 
-# Configure environment
-cp .env.example .env
-# Edit .env with your API keys
+# Run the application
+python main.py
+```
+
+## 🧪 Testing
+
+Run the test suite to verify everything is working:
+
+```bash
+# Start the server (in one terminal)
+python main.py
+
+# Run tests (in another terminal)
+python test_agents.py
+```
+
+## 📡 API Usage
+
+### Basic Queries
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Agent discovery
+curl http://localhost:8000/agents/discover
+
+# Process a query through the orchestrator
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is our revenue for 2024?", "agent_type": "orchestrator"}'
+
+# Query financial data directly
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Show me Q1 revenue data", "agent_type": "financial"}'
+
+# Check compliance
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Check SOX compliance", "agent_type": "policy"}'
 ```
 
 ## 📚 Research and Planning
@@ -90,25 +128,25 @@ This project is based on research and planning from our [A2A Implementation Plan
 
 ## 📈 Development Roadmap
 
-### Phase 1: Research and Setup
-- [ ] Research Google A2A Framework
-- [ ] Study LangChain AgentExecutor
-- [ ] Set up development environment
+### Phase 1: Research and Setup ✅
+- [x] Research Google A2A Framework
+- [x] Study LangChain AgentExecutor
+- [x] Set up development environment
 
-### Phase 2: Architecture Design
-- [ ] Design agent architecture
-- [ ] Plan agent-to-agent communication
-- [ ] Design agent cards
+### Phase 2: Architecture Design ✅
+- [x] Design agent architecture
+- [x] Plan agent-to-agent communication
+- [x] Design agent cards
 
-### Phase 3: Implementation
-- [ ] Implement base A2A framework
-- [ ] Convert services to agents
-- [ ] Implement agent communication
+### Phase 3: Implementation ✅
+- [x] Implement base A2A framework
+- [x] Convert services to agents
+- [x] Implement agent communication
 
-### Phase 4: Testing and Validation
-- [ ] Unit testing
-- [ ] Integration testing
-- [ ] Performance testing
+### Phase 4: Testing and Validation ✅
+- [x] Unit testing
+- [x] Integration testing
+- [x] Performance testing
 
 ## 🤝 Contributing
 

@@ -1,0 +1,39 @@
+# A2A Audit & Compliance Agent Network - Requirements
+
+# Core Dependencies
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Database
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+
+# LLM & Orchestration
+openai>=1.0.0
+langchain>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.10
+langgraph>=0.1.0
+
+# Google A2A Framework
+google-a2a>=0.2.2
+
+# Observability
+langfuse>=3.0.0
+
+# OPA Client
+requests>=2.30.0
+
+# UI
+streamlit>=1.30.0
+
+# Utilities
+python-dotenv>=1.0.0
+faker>=20.0.0
+
+# Development Dependencies
+pytest>=7.0.0
+black>=23.0.0
+ruff>=0.1.0
