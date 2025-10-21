@@ -1,67 +1,81 @@
 # A2A Audit & Compliance Agent Network
 
-**Agent-to-Agent Architecture using Google's A2A Framework and LangChain AgentExecutor**
+**Simplified Agent-to-Agent Architecture using Google's A2A Framework**
 
-This project implements a proper Agent-to-Agent (A2A) architecture following Google's A2A protocol specifications, using LangChain AgentExecutor for agent management and coordination.
+This project implements a simplified Agent-to-Agent (A2A) architecture using Google's A2A framework as a foundation, with custom orchestration logic and LangChain GPT-4 integration for intelligent coordination.
 
 ## 🎯 Project Goals
 
-- **A2A Implementation**: Using Google's official A2A framework
-- **AgentExecutor Integration**: Proper LangChain agent lifecycle management
+- **A2A Foundation**: Using Google's A2A framework as base classes
+- **Custom Orchestration**: Simplified agent coordination with LangChain GPT-4
 - **Standard Agent Cards**: Following Google's A2A specifications
-- **Agent-to-Agent Communication**: Not just microservices with REST APIs
+- **Agent-to-Agent Communication**: Custom request/response pattern
 
 ## 🏗️ Architecture Overview
 
 ### Agent-to-Agent Architecture
 
 ```
-Natural Language Query
-        ↓
-   Agent A (Orchestrator)
-   - LangChain AgentExecutor
-   - GPT-4 query parsing
-   - Agent discovery
-        ↓
-   ┌────┴────┐
-   ↓         ↓
-Agent B    Agent C
-(Data)     (Policy)
-- A2A Agent - A2A Agent
-- Agent Card - Agent Card
-- A2A Protocol - A2A Protocol
+┌─────────────────────────────────────────────────────────────┐
+│                    Natural Language Query                    │
+│                    (User Input)                             │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│              🎯 Orchestrator Agent                          │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │ • Google A2A AgentExecutor (Base Class)                │ │
+│  │ • LangChain GPT-4 Integration                          │ │
+│  │ • Agent Discovery & Coordination                        │ │
+│  │ • Request Parsing & Response Synthesis                  │ │
+│  └─────────────────────────────────────────────────────────┘ │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+┌───────▼────────┐        ┌─────────▼─────────┐
+│ 💰 Financial   │        │ ⚖️ Policy Engine   │
+│ Data Agent     │        │ Agent             │
+│                │        │                    │
+│ ┌─────────────┐│        │ ┌─────────────────┐│
+│ │ • A2A Base  ││        │ │ • A2A Base      ││
+│ │ • SQLite DB ││        │ │ • AML Policies  ││
+│ │ • Transaction││        │ │ • Compliance    ││
+│ │   Analysis  ││        │ │   Validation    ││
+│ └─────────────┘│        │ └─────────────────┘│
+└────────────────┘        └────────────────────┘
 ```
 
 ### Agent Profiles
 
-#### Agent A: Audit Orchestrator Agent
+#### 🎯 Orchestrator Agent
 - **Role**: Intelligent interface and agent coordinator
-- **Technology**: LangChain AgentExecutor, Google A2A Framework
-- **Architecture**: True agent with A2A protocol communication
+- **Technology**: Google A2A AgentExecutor (Base Class), LangChain GPT-4 integration
+- **Architecture**: Simplified A2A agent with custom orchestration logic
 
-#### Agent B: Financial Data Agent
-- **Role**: Secure data access agent
-- **Technology**: Google A2A Framework, Agent Cards
-- **Architecture**: A2A agent with proper agent cards
+#### 💰 Financial Data Agent
+- **Role**: Secure data access and transaction analysis
+- **Technology**: Google A2A Framework (Base Class), SQLite Database
+- **Architecture**: Simplified A2A agent with database integration
 
-#### Agent C: Policy Engine Agent
-- **Role**: Compliance validation agent
-- **Technology**: Google A2A Framework, Agent Cards
-- **Architecture**: A2A agent with proper agent cards
+#### ⚖️ Policy Engine Agent
+- **Role**: Compliance validation and AML policy enforcement
+- **Technology**: Google A2A Framework (Base Class), Custom Policy Engine
+- **Architecture**: Simplified A2A agent with policy validation logic
 
 ## 📋 Implementation Status
 
 **Current Status**: Implementation Complete ✅  
-**Target Version**: v1.0.0-a2a  
-**Dependencies**: Google A2A Framework, LangChain AgentExecutor
+**Target Version**: v1.0.0-simplified-a2a  
+**Dependencies**: Google A2A Framework (Base Classes), LangChain GPT-4 integration
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Python 3.11+
-- Google A2A Framework
-- LangChain with AgentExecutor
+- Google A2A Framework (a2a-sdk) - Base Classes Only
+- LangChain with GPT-4 integration
 - OpenAI API Key
 
 ### Installation
@@ -130,7 +144,7 @@ This project is based on research and planning from our [A2A Implementation Plan
 
 ### Phase 1: Research and Setup ✅
 - [x] Research Google A2A Framework
-- [x] Study LangChain AgentExecutor
+- [x] Study Google A2A Framework (Base Classes)
 - [x] Set up development environment
 
 ### Phase 2: Architecture Design ✅

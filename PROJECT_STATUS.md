@@ -1,18 +1,18 @@
 # A2A Audit & Compliance Agent Network
 
-This project implements an Agent-to-Agent (A2A) architecture using Google's A2A framework and LangChain AgentExecutor.
+This project implements a simplified Agent-to-Agent (A2A) architecture using Google's A2A framework as base classes, with custom orchestration logic and LangChain GPT-4 integration for intelligent coordination.
 
 ## Project Status
 
 **Current Phase**: Implementation Complete  
-**Target**: True A2A implementation with Google's framework ✅  
+**Target**: Simplified A2A implementation with Google's framework ✅  
 **Related Project**: [kpmg_audit_compliance_microservices](../kpmg_a2a_audit_compliance_network/) (current microservices version)
 
 ## Development Phases
 
 ### Phase 1: Research and Setup ✅
 - [x] Research Google A2A Framework
-- [x] Study LangChain AgentExecutor
+- [x] Study Google A2A Framework (Base Classes)
 - [x] Set up development environment
 
 ### Phase 2: Architecture Design ✅
@@ -33,8 +33,8 @@ This project implements an Agent-to-Agent (A2A) architecture using Google's A2A 
 ## Next Steps
 
 1. ✅ Research Google A2A framework documentation
-2. ✅ Study LangChain AgentExecutor patterns  
-3. ✅ Design new architecture
+2. ✅ Study Google A2A Framework (Base Classes)  
+3. ✅ Design simplified architecture
 4. ✅ Begin implementation
 5. 🚀 Deploy and test the system
 6. 📊 Monitor performance and optimize
@@ -45,4 +45,4 @@ This project implements an Agent-to-Agent (A2A) architecture using Google's A2A 
 - [A2A Implementation Plan](./A2A_IMPLEMENTATION_PLAN.md)
 - [Microservices Version](../kpmg_a2a_audit_compliance_network/)
 - Google A2A Protocol Documentation (TBD)
-- LangChain AgentExecutor Examples (TBD)
+- Google A2A Framework Base Classes Documentation (TBD)
