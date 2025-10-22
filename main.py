@@ -1,29 +1,27 @@
 """
-Main application for the A2A Audit & Compliance Agent Network.
-
-This module provides the main entry point and agent server implementation.
+MCP-based Audit & Compliance Platform
+Main application entry point using Model Context Protocol.
 """
 
-import asyncio
-import logging
 import os
-from typing import Dict, Any
+import logging
+import asyncio
 from datetime import datetime
-import uvicorn
+from typing import Dict, Any
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import json
+import uvicorn
 from dotenv import load_dotenv
+
+from src.database import init_database, get_db_manager
+from src.mcp_server import get_mcp_server
+from src.mcp_client import get_mcp_client
+from src.tracing import LangfuseTracer
 
 # Load environment variables
 load_dotenv()
-
-from src.agents.orchestrator_agent import OrchestratorAgent
-from src.agents.financial_data_agent import FinancialDataAgent
-from src.agents.policy_engine_agent import PolicyEngineAgent
-from src.database import init_database
-from src.tracing import get_tracer, is_langfuse_enabled
 
 # Configure logging
 logging.basicConfig(
@@ -32,24 +30,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Pydantic models for API
-class QueryRequest(BaseModel):
-    query: str
-    agent_type: str = "orchestrator"  # orchestrator, financial, policy
-
-class AgentDiscoveryResponse(BaseModel):
-    agents: Dict[str, Any]
-    timestamp: str
-
-class AgentStatusResponse(BaseModel):
-    status: str
-    agents: Dict[str, Any]
-    timestamp: str
-
 # Initialize FastAPI app
 app = FastAPI(
-    title="A2A Audit & Compliance Agent Network",
-    description="Agent-to-Agent architecture using Google's A2A framework and LangChain",
+    title="MCP Audit & Compliance Platform",
+    description="Model Context Protocol-based audit and compliance system",
     version="1.0.0"
 )
 
@@ -62,197 +46,222 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global agent instances
-agents: Dict[str, Any] = {}
+# Global instances
+mcp_server = None
+mcp_client = None
+tracer = None
+
+class QueryRequest(BaseModel):
+    query: str
+    include_tracing: bool = True
+
+class QueryResponse(BaseModel):
+    type: str
+    query: str
+    response: str
+    tools_used: list
+    tool_results: Dict[str, Any]
+    metadata: Dict[str, Any]
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize agents on startup."""
-    logger.info("Starting A2A Audit & Compliance Agent Network")
-    
-    # Get OpenAI API key from environment
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        logger.warning("OPENAI_API_KEY not found in environment variables")
-        openai_api_key = "dummy-key"  # For development
+    """Initialize the MCP server and client on startup."""
+    global mcp_server, mcp_client, tracer
     
     try:
+        logger.info("🚀 Starting MCP Audit & Compliance Platform...")
+        
         # Initialize database
-        logger.info("Initializing database...")
+        logger.info("📊 Initializing database...")
         init_database()
-        logger.info("Database initialized successfully")
+        logger.info("✅ Database initialized successfully")
+        
+        # Initialize MCP server
+        logger.info("🔧 Initializing MCP server...")
+        mcp_server = get_mcp_server()
+        logger.info("✅ MCP server initialized successfully")
+        
+        # Initialize MCP client
+        logger.info("🤖 Initializing MCP client...")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is required")
+        
+        mcp_client = get_mcp_client(openai_api_key)
+        logger.info("✅ MCP client initialized successfully")
         
         # Initialize tracing
-        tracer = get_tracer()
-        if is_langfuse_enabled():
-            logger.info("Langfuse tracing enabled")
-        else:
-            logger.info("Langfuse tracing disabled")
+        logger.info("📈 Initializing tracing...")
+        tracer = LangfuseTracer()
+        logger.info("✅ Tracing initialized successfully")
         
-        # Initialize agents
-        logger.info("Initializing agents...")
-        agents["orchestrator"] = OrchestratorAgent(openai_api_key)
-        agents["financial"] = FinancialDataAgent()
-        agents["policy"] = PolicyEngineAgent()
-        
-        logger.info("All agents initialized successfully")
+        logger.info("🎉 MCP Audit & Compliance Platform started successfully!")
         
     except Exception as e:
-        logger.error(f"Error initializing system: {str(e)}")
+        logger.error(f"❌ Failed to initialize application: {e}")
         raise
 
 @app.get("/")
 async def root():
-    """Root endpoint with basic information."""
+    """Root endpoint with system information."""
     return {
-        "message": "A2A Audit & Compliance Agent Network",
+        "message": "MCP Audit & Compliance Platform",
         "version": "1.0.0",
         "status": "running",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "features": [
+            "MCP Server with audit tools",
+            "GPT-4 integration via MCP client",
+            "Financial data queries",
+            "Compliance validation",
+            "Audit report generation",
+            "Langfuse tracing"
+        ]
     }
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "agents": {
-            agent_name: "running" 
-            for agent_name in agents.keys()
-        }
-    }
-
-@app.post("/query")
-async def process_query(request: QueryRequest):
-    """
-    Process a natural language query using the specified agent.
-    
-    Args:
-        request: Query request containing the query and agent type
-        
-    Returns:
-        Response from the agent
-    """
     try:
-        logger.info(f"Processing query: {request.query} with agent: {request.agent_type}")
-        
-        if request.agent_type not in agents:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unknown agent type: {request.agent_type}"
-            )
-        
-        agent = agents[request.agent_type]
-        
-        # Create a mock context for the agent
-        # In a real A2A implementation, this would be properly structured
-        class MockContext:
-            def __init__(self, query: str):
-                self.query = query
-                self.request_id = f"req_{datetime.utcnow().timestamp()}"
-            
-            def get_user_input(self) -> str:
-                return self.query
-            
-            def get_request_id(self) -> str:
-                return self.request_id
-            
-            def get_task_id(self) -> str:
-                return f"task_{self.request_id}"
-        
-        context = MockContext(request.query)
-        
-        # Process the request
-        if request.agent_type == "orchestrator":
-            result = await agent._process_request(context)
-        else:
-            result = await agent._process_request(context)
+        # Check database connection
+        db_manager = get_db_manager()
+        transactions_count = len(db_manager.get_transactions())
         
         return {
-            "query": request.query,
-            "agent_type": request.agent_type,
-            "response": result,
-            "timestamp": datetime.utcnow().isoformat()
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "database": "connected",
+            "transactions_count": transactions_count,
+            "mcp_server": "running" if mcp_server else "not_initialized",
+            "mcp_client": "running" if mcp_client else "not_initialized"
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+
+@app.post("/query", response_model=QueryResponse)
+async def process_query(request: QueryRequest):
+    """Process audit and compliance queries using MCP tools."""
+    try:
+        if not mcp_client:
+            raise HTTPException(status_code=500, detail="MCP client not initialized")
+        
+        logger.info(f"Processing query: {request.query}")
+        
+        # Process query using MCP client
+        result = await mcp_client.process_query(request.query)
+        
+        # Add tracing if requested
+        if request.include_tracing and tracer:
+            with tracer.trace("api_query") as span:
+                span.set_attribute("query", request.query)
+                span.set_attribute("tools_used", result.get("tools_used", []))
+                span.set_attribute("response_type", result.get("type", "unknown"))
+        
+        return QueryResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Error processing query: {e}")
+        raise HTTPException(status_code=500, detail=f"Query processing failed: {str(e)}")
+
+@app.get("/tools")
+async def get_available_tools():
+    """Get list of available MCP tools."""
+    try:
+        if not mcp_client:
+            raise HTTPException(status_code=500, detail="MCP client not initialized")
+        
+        tools = await mcp_client.get_available_tools()
+        return {
+            "tools": tools,
+            "count": len(tools),
+            "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Error processing query: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting tools: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get tools: {str(e)}")
 
-@app.get("/agents/discover")
-async def discover_agents():
-    """Discover all available agents and their capabilities."""
+@app.get("/resources")
+async def get_available_resources():
+    """Get list of available MCP resources."""
     try:
-        orchestrator = agents["orchestrator"]
-        discovery_result = await orchestrator.discover_agents()
+        if not mcp_server:
+            raise HTTPException(status_code=500, detail="MCP server not initialized")
         
-        return AgentDiscoveryResponse(
-            agents=discovery_result["discovered_agents"],
-            timestamp=discovery_result["timestamp"]
-        )
+        resources = [
+            {
+                "uri": "audit://policies/aml",
+                "name": "AML Policies",
+                "description": "Anti-Money Laundering policies and rules"
+            },
+            {
+                "uri": "audit://policies/compliance",
+                "name": "Compliance Rules",
+                "description": "General compliance rules and regulations"
+            },
+            {
+                "uri": "audit://schema/database",
+                "name": "Database Schema",
+                "description": "Database schema and table structures"
+            }
+        ]
+        
+        return {
+            "resources": resources,
+            "count": len(resources),
+            "timestamp": datetime.now().isoformat()
+        }
         
     except Exception as e:
-        logger.error(f"Error discovering agents: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting resources: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get resources: {str(e)}")
 
-@app.get("/agents/status")
-async def get_agent_status():
-    """Get the status of all agents."""
+@app.get("/data/transactions")
+async def get_transactions(limit: int = 100, country: str = None, risk_category: str = None):
+    """Get transactions data (direct database access for testing)."""
     try:
-        orchestrator = agents["orchestrator"]
-        status_result = await orchestrator.get_agent_status()
+        db_manager = get_db_manager()
+        filters = {}
         
-        return AgentStatusResponse(
-            status="running",
-            agents=status_result["agents"],
-            timestamp=status_result["timestamp"]
-        )
+        if country:
+            filters["country"] = country
+        if risk_category:
+            filters["risk_category"] = risk_category
+        
+        transactions = db_manager.get_transactions(**filters)
+        limited_transactions = transactions[:limit]
+        
+        return {
+            "transactions": limited_transactions,
+            "total_count": len(transactions),
+            "returned_count": len(limited_transactions),
+            "filters": filters,
+            "timestamp": datetime.now().isoformat()
+        }
         
     except Exception as e:
-        logger.error(f"Error getting agent status: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting transactions: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get transactions: {str(e)}")
 
-@app.get("/agents/{agent_name}/card")
-async def get_agent_card(agent_name: str):
-    """Get the agent card for a specific agent."""
+@app.get("/data/suppliers")
+async def get_suppliers():
+    """Get suppliers data (direct database access for testing)."""
     try:
-        if agent_name not in agents:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Agent not found: {agent_name}"
-            )
+        db_manager = get_db_manager()
+        suppliers = db_manager.get_suppliers()
         
-        agent = agents[agent_name]
-        agent_card = agent.get_agent_card()
-        
-        return agent_card
+        return {
+            "suppliers": suppliers,
+            "count": len(suppliers),
+            "timestamp": datetime.now().isoformat()
+        }
         
     except Exception as e:
-        logger.error(f"Error getting agent card: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/agents/{agent_name}/capabilities")
-async def get_agent_capabilities(agent_name: str):
-    """Get the capabilities of a specific agent."""
-    try:
-        if agent_name not in agents:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Agent not found: {agent_name}"
-            )
-        
-        agent = agents[agent_name]
-        capabilities = agent._get_capabilities()
-        
-        return capabilities
-        
-    except Exception as e:
-        logger.error(f"Error getting agent capabilities: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error getting suppliers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get suppliers: {str(e)}")
 
 if __name__ == "__main__":
-    # Run the application
     uvicorn.run(
         "main:app",
         host="0.0.0.0",

@@ -1,35 +1,28 @@
 [project]
-name = "kpmg-a2a-audit-compliance"
+name = "mcp-audit-compliance-platform"
 version = "0.1.0"
-description = "Agent-to-Agent Architecture using Google's A2A Framework and LangChain AgentExecutor"
+description = "MCP-based Audit & Compliance Platform with Financial Data and Policy Engine Tools"
 requires-python = ">=3.11"
 dependencies = [
-    # Core Dependencies
+    # MCP Core
+    "mcp>=1.0.0",
+    
+    # Web Framework
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
     
     # Database
-    "psycopg2-binary>=2.9.0",
     "sqlalchemy>=2.0.0",
     "alembic>=1.12.0",
     
-    # LLM & Orchestration
+    # LLM & AI
     "openai>=1.0.0",
     "langchain>=0.1.0",
     "langchain-openai>=0.0.5",
     "langchain-community>=0.0.10",
-    "langgraph>=0.1.0",
-    
-    # Google A2A Framework
-    "a2a-sdk>=0.2.5",
     
     # Observability
     "langfuse>=3.0.0",
-    
-    # OPA Client
-    "requests>=2.30.0",
     
     # UI
     "streamlit>=1.30.0",
@@ -37,6 +30,9 @@ dependencies = [
     # Utilities
     "python-dotenv>=1.0.0",
     "faker>=20.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "requests>=2.30.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
 ]
