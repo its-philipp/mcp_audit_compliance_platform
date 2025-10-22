@@ -282,6 +282,30 @@ For questions, issues, or contributions:
 - Contact the development team
 - Check the documentation
 
+## 📸 Screenshots
+
+### Application Interface
+
+#### Starting Page
+![Starting Page 1](screenshots/1-starting_page1.png)
+*Welcome screen with MCP architecture diagram and example queries*
+
+![Starting Page 2](screenshots/2-starting_page2.png)
+*Sidebar with AML policies and example query selection*
+
+### Audit Results
+
+#### USA Low-Risk Transaction Analysis
+![Audit Results 1-1](screenshots/3-audit_results1-1.png)
+*Analysis of transactions under €5,000 from USA suppliers with low risk category*
+
+![Audit Results 1-2](screenshots/4-audit_results1-2.png)
+*Detailed violation breakdown and compliance status for USA transactions*
+
+#### Russia High-Risk Transaction Analysis
+![Audit Results 2](screenshots/5-audit_results2.png)
+*Comprehensive analysis of Russia transactions showing 213 violations from 100 transactions*
+
 ---
 
 **🔍 MCP Audit & Compliance Platform** - Powered by Model Context Protocol & GPT-4
