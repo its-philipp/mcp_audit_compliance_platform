@@ -2,31 +2,25 @@
 name = "mcp-audit-compliance-platform"
 version = "0.1.0"
 description = "MCP-based Audit & Compliance Platform with Financial Data and Policy Engine Tools"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     # MCP Core
     "mcp>=1.0.0",
-    
     # Web Framework
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
-    
     # Database
     "sqlalchemy>=2.0.0",
     "alembic>=1.12.0",
-    
     # LLM & AI
     "openai>=1.0.0",
     "langchain>=0.1.0",
     "langchain-openai>=0.0.5",
     "langchain-community>=0.0.10",
-    
     # Observability
     "langfuse>=3.0.0",
-    
     # UI
     "streamlit>=1.30.0",
-    
     # Utilities
     "python-dotenv>=1.0.0",
     "faker>=20.0.0",
@@ -35,6 +29,8 @@ dependencies = [
     "requests>=2.30.0",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
+    "mcp-server>=0.1.4",
+    "mcp-client>=0.0.0",
 ]
 
 [project.optional-dependencies]

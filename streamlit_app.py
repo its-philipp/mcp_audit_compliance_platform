@@ -122,6 +122,7 @@ def run_audit_with_tracing(query: str) -> Dict[str, Any]:
             # Extract transaction data from tool results
             transactions = []
             violations = []
+            actual_violation_count = 0
             
             if "query_financial_data" in tool_results:
                 try:
@@ -130,31 +131,66 @@ def run_audit_with_tracing(query: str) -> Dict[str, Any]:
                 except:
                     transactions = []
             
+            # Get violations from multiple possible sources
             if "validate_compliance" in tool_results:
                 try:
                     compliance_data = json.loads(tool_results["validate_compliance"])
                     violations = compliance_data.get("violations", [])
+                    actual_violation_count = len(violations)
                 except:
                     violations = []
             
+            # Also check generate_audit_report for violations
+            if "generate_audit_report" in tool_results:
+                try:
+                    report_data = json.loads(tool_results["generate_audit_report"])
+                    if "violations" in report_data:
+                        violations = report_data.get("violations", [])
+                        actual_violation_count = len(violations)
+                except:
+                    pass
+            
+            # Check compliance status for violation count
+            if "check_compliance_status" in tool_results:
+                try:
+                    status_data = json.loads(tool_results["check_compliance_status"])
+                    if "violations_found" in status_data:
+                        actual_violation_count = status_data.get("violations_found", 0)
+                except:
+                    pass
+            
             # Generate dynamic report based on actual data
             total_transactions = len(transactions)
-            total_violations = len(violations)
-            
-            # Determine compliance status
-            compliance_status = "PASS" if total_violations == 0 else "FAIL"
             
             # Generate detailed violations if we have transaction data
             detailed_violations = []
             if transactions:
-                # Get AML policies from MCP server
+                # Use static AML policies for Streamlit display
                 try:
-                    mcp_server = get_mcp_server()
-                    aml_policies = json.loads(mcp_server._get_aml_policies())
+                    aml_policies = {
+                        "high_value_transaction": {
+                            "threshold": 100000,
+                            "severity": "high"
+                        },
+                        "ctr_threshold": {
+                            "threshold": 5000,
+                            "severity": "medium",
+                            "payment_methods": ["CASH", "CHECK"]
+                        },
+                        "sar_threshold": {
+                            "threshold": 3000,
+                            "severity": "high",
+                            "risk_categories": ["HIGH"]
+                        },
+                        "high_risk_country": {
+                            "countries": ["Russia", "Iran", "North Korea", "Syria"],
+                            "severity": "critical"
+                        }
+                    }
                     
                     for transaction in transactions[:20]:  # Limit to first 20 for display
                         amount = transaction.get("amount", 0)
-                        country = transaction.get("country", "")
+                        country = transaction.get("supplier_country", "")
                         risk_category = transaction.get("risk_category", "")
                         payment_method = transaction.get("payment_method", "")
                         
@@ -217,6 +253,10 @@ def run_audit_with_tracing(query: str) -> Dict[str, Any]:
                 except Exception as e:
                     st.error(f"Error processing AML policies: {e}")
             
+            # Determine compliance status based on actual violations from MCP tools
+            total_violations = actual_violation_count if actual_violation_count > 0 else len(detailed_violations)
+            compliance_status = "PASS" if total_violations == 0 else "FAIL"
+            
             return {
                 "type": "mcp_audit_report",
                 "query": query,
@@ -224,11 +264,11 @@ def run_audit_with_tracing(query: str) -> Dict[str, Any]:
                 "tools_used": tools_used,
                 "summary": {
                     "total_transactions": total_transactions,
-                    "violations_found": len(detailed_violations),
+                    "violations_found": total_violations,
                     "compliance_status": compliance_status,
                     "tracing_enabled": is_langfuse_enabled()
                 },
-                "violations": detailed_violations,
+                "violations": violations if violations else detailed_violations,
                 "metadata": {
                     "timestamp": datetime.now().isoformat(),
                     "mcp_enabled": True,
@@ -309,10 +349,23 @@ with st.sidebar:
     
     selected_query = st.selectbox("Select an example query:", example_queries)
     
-    if st.button("🚀 Run Selected Query", type="primary"):
-        with st.spinner("Running audit with MCP tools..."):
-            result = run_audit_with_tracing(selected_query)
-            st.session_state.audit_result = result
+    # Show the selected query immediately
+    st.info(f"🔍 **Selected Query:** {selected_query}")
+    
+    col1, col2 = st.columns([4, 1])
+    
+    with col1:
+        if st.button("🚀 Run Selected Query", type="primary", use_container_width=True):
+            with st.spinner("Running audit with MCP tools..."):
+                result = run_audit_with_tracing(selected_query)
+                st.session_state.audit_result = result
+                st.rerun()
+    
+    with col2:
+        if st.button("🗑️ Clear", use_container_width=True, help="Clear audit results"):
+            if 'audit_result' in st.session_state:
+                del st.session_state.audit_result
+            st.rerun()
     
     # Custom query
     st.subheader("✍️ Custom Query")
@@ -332,25 +385,110 @@ with st.sidebar:
     st.text(f"MCP Server: {'🟢 Running' if st.session_state.get('mcp_server_running', True) else '🔴 Stopped'}")
     st.text(f"Tracing: {'🟢 Enabled' if is_langfuse_enabled() else '🔴 Disabled'}")
     
-    # MCP Tools Status
-    st.subheader("🔧 MCP Tools")
-    mcp_tools = [
-        "query_financial_data",
-        "validate_compliance", 
-        "generate_audit_report",
-        "check_compliance_status",
-        "get_audit_trail"
-    ]
+    # AML Policies
+    st.subheader("⚖️ AML Policies")
+    aml_policies = {
+        "high_value_transaction": {
+            "description": "High-value transactions require additional documentation",
+            "threshold": 100000,
+            "severity": "high",
+            "currency": "EUR"
+        },
+        "ctr_threshold": {
+            "description": "Currency Transaction Report threshold",
+            "threshold": 5000,
+            "severity": "medium",
+            "currency": "EUR"
+        },
+        "sar_threshold": {
+            "description": "Suspicious Activity Report threshold",
+            "threshold": 3000,
+            "severity": "high",
+            "currency": "EUR"
+        },
+        "pep_transaction": {
+            "description": "Politically Exposed Person transaction monitoring",
+            "threshold": 1000,
+            "severity": "high",
+            "currency": "EUR"
+        },
+        "high_risk_country": {
+            "description": "High-risk country transaction monitoring",
+            "severity": "critical",
+            "countries": ["Russia", "Iran", "North Korea", "Syria"]
+        }
+    }
     
-    for tool in mcp_tools:
-        st.text(f"• {tool}")
+    for policy_name, policy_data in aml_policies.items():
+        with st.expander(f"📋 {policy_data['description']}", expanded=False):
+            # Handle threshold formatting safely
+            threshold = policy_data.get('threshold')
+            if threshold is not None:
+                st.write(f"**Threshold:** €{threshold:,}")
+            else:
+                st.write(f"**Threshold:** N/A")
+            
+            st.write(f"**Severity:** {policy_data.get('severity', 'N/A').upper()}")
+            st.write(f"**Currency:** {policy_data.get('currency', 'EUR')}")
+            
+            if 'countries' in policy_data:
+                st.write(f"**Countries:** {', '.join(policy_data['countries'])}")
+            
+            if 'payment_methods' in policy_data:
+                st.write(f"**Payment Methods:** {', '.join(policy_data['payment_methods'])}")
+            
+            if 'rules' in policy_data:
+                st.write("**Rules:**")
+                for rule in policy_data['rules']:
+                    st.write(f"• {rule}")
 
 # Main content area
+
+# MCP Architecture Diagram - Always visible
+st.markdown("### 🏗️ MCP Architecture")
+st.markdown("""
+<div style="background-color: #1a202c; padding: 1.5rem; border-radius: 0.5rem; margin: 1rem 0; border: 1px solid #4a5568;">
+    <div style="text-align: center; color: #e2e8f0; margin-bottom: 1rem;">
+        <h4 style="color: #63b3ed; margin: 0;">Model Context Protocol (MCP) Architecture</h4>
+    </div>
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <div style="background-color: #2d3748; padding: 1rem; border-radius: 0.5rem; border: 1px solid #4a5568; flex: 1; min-width: 200px;">
+            <h5 style="color: #90cdf4; margin: 0 0 0.5rem 0;">🤖 GPT-4 Client</h5>
+            <p style="color: #cbd5e0; margin: 0; font-size: 0.9rem;">AI Assistant with MCP Client</p>
+        </div>
+        <div style="color: #63b3ed; font-size: 1.5rem;">↔️</div>
+        <div style="background-color: #2d3748; padding: 1rem; border-radius: 0.5rem; border: 1px solid #4a5568; flex: 1; min-width: 200px;">
+            <h5 style="color: #90cdf4; margin: 0 0 0.5rem 0;">🔧 MCP Server</h5>
+            <p style="color: #cbd5e0; margin: 0; font-size: 0.9rem;">Audit & Compliance Tools</p>
+        </div>
+        <div style="color: #63b3ed; font-size: 1.5rem;">↔️</div>
+        <div style="background-color: #2d3748; padding: 1rem; border-radius: 0.5rem; border: 1px solid #4a5568; flex: 1; min-width: 200px;">
+            <h5 style="color: #90cdf4; margin: 0 0 0.5rem 0;">📊 Database</h5>
+            <p style="color: #cbd5e0; margin: 0; font-size: 0.9rem;">Financial Data & Policies</p>
+        </div>
+    </div>
+    <div style="margin-top: 1rem; padding: 1rem; background-color: #2d3748; border-radius: 0.5rem; border: 1px solid #4a5568;">
+        <h6 style="color: #90cdf4; margin: 0 0 0.5rem 0;">🔧 Available MCP Tools:</h6>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.5rem;">
+            <div style="color: #cbd5e0; font-size: 0.85rem;">• query_financial_data</div>
+            <div style="color: #cbd5e0; font-size: 0.85rem;">• validate_compliance</div>
+            <div style="color: #cbd5e0; font-size: 0.85rem;">• generate_audit_report</div>
+            <div style="color: #cbd5e0; font-size: 0.85rem;">• check_compliance_status</div>
+            <div style="color: #cbd5e0; font-size: 0.85rem;">• get_audit_trail</div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 if st.session_state.audit_result:
     result = st.session_state.audit_result
     
     # Display results
     st.header("📋 Audit Results")
+    
+    # Show the query that was executed
+    if "query" in result:
+        st.info(f"🔍 **Query Executed:** {result['query']}")
     
     # Summary metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -384,13 +522,31 @@ if st.session_state.audit_result:
     
     # MCP Response
     st.subheader("🤖 MCP AI Response")
-    st.markdown(result["response"])
+    response_text = result.get("response", "No response available")
+    if response_text:
+        st.markdown(response_text)
+    else:
+        st.info("No AI response available for this query.")
     
     # Tools Used
     if result.get("tools_used"):
-        st.subheader("🔧 MCP Tools Used")
-        for tool in result["tools_used"]:
-            st.text(f"• {tool}")
+        with st.expander("🔧 MCP Tools Used", expanded=False):
+            for tool in result["tools_used"]:
+                st.text(f"• {tool}")
+            
+            # Add tool descriptions
+            tool_descriptions = {
+                "query_financial_data": "Queries financial transactions, revenue, expenses, and assets",
+                "validate_compliance": "Validates transactions against AML policies and compliance rules",
+                "generate_audit_report": "Generates comprehensive audit reports with violations and recommendations",
+                "check_compliance_status": "Checks overall compliance status and identifies violations",
+                "get_audit_trail": "Retrieves audit trail and compliance history"
+            }
+            
+            st.markdown("**Tool Descriptions:**")
+            for tool in result["tools_used"]:
+                if tool in tool_descriptions:
+                    st.markdown(f"• **{tool}**: {tool_descriptions[tool]}")
     
     # Violations Table
     if result["violations"]:
@@ -424,38 +580,83 @@ if st.session_state.audit_result:
 else:
     # Welcome message
     st.markdown("""
-    <div class="feature-box">
-        <h3>🎯 Welcome to the MCP Audit & Compliance Platform</h3>
-        <p>This platform uses the <strong>Model Context Protocol (MCP)</strong> to provide intelligent audit and compliance analysis.</p>
-        
-        <h4>🔧 Available MCP Tools:</h4>
-        <ul>
-            <li><strong>query_financial_data</strong> - Query financial transactions, revenue, expenses, and assets</li>
-            <li><strong>validate_compliance</strong> - Validate transactions against AML policies and compliance rules</li>
-            <li><strong>generate_audit_report</strong> - Generate comprehensive audit reports with violations and recommendations</li>
-            <li><strong>check_compliance_status</strong> - Check overall compliance status and identify violations</li>
-            <li><strong>get_audit_trail</strong> - Retrieve audit trail and compliance history</li>
-        </ul>
-        
-        <h4>🚀 How to Use:</h4>
-        <ol>
-            <li>Select an example query from the sidebar</li>
-            <li>Click "Run Selected Query" to execute</li>
-            <li>Or enter your own custom query</li>
-            <li>View the AI-powered analysis and compliance results</li>
-        </ol>
+    <div class="feature-box" style="background-color: #2d3748; color: #e2e8f0; padding: 2rem; border-radius: 0.5rem; margin: 1rem 0; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #4a5568;">
+        <h3 style="color: #63b3ed; margin-top: 0; font-size: 1.5rem;">🎯 Welcome to the MCP Audit & Compliance Platform</h3>
+        <p style="color: #cbd5e0; font-size: 1.1rem; line-height: 1.6;">This platform uses the <strong style="color: #90cdf4;">Model Context Protocol (MCP)</strong> to provide intelligent audit and compliance analysis.</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Available MCP Tools
+    st.markdown("### 🔧 Available MCP Tools")
+    tools_info = [
+        ("**query_financial_data**", "Query financial transactions, revenue, expenses, and assets"),
+        ("**validate_compliance**", "Validate transactions against AML policies and compliance rules"),
+        ("**generate_audit_report**", "Generate comprehensive audit reports with violations and recommendations"),
+        ("**check_compliance_status**", "Check overall compliance status and identify violations"),
+        ("**get_audit_trail**", "Retrieve audit trail and compliance history")
+    ]
+    
+    for tool_name, description in tools_info:
+        st.markdown(f"• {tool_name} - {description}")
+    
+    # How to Use
+    st.markdown("### 🚀 How to Use")
+    steps = [
+        "Select an example query from the sidebar",
+        "Click \"Run Selected Query\" to execute",
+        "Or enter your own custom query",
+        "View the AI-powered analysis and compliance results"
+    ]
+    
+    for i, step in enumerate(steps, 1):
+        st.markdown(f"{i}. {step}")
     
     # AML Policies Section (dynamic loading)
     st.subheader("⚖️ AML Policies")
     try:
         mcp_server = get_mcp_server()
-        aml_policies = json.loads(mcp_server._get_aml_policies())
+        # Get AML policies synchronously - create a simple version for display
+        aml_policies = {
+            "high_value_transaction": {
+                "description": "High-value transactions require additional documentation",
+                "threshold": 100000,
+                "severity": "high",
+                "currency": "EUR"
+            },
+            "ctr_threshold": {
+                "description": "Currency Transaction Report threshold",
+                "threshold": 5000,
+                "severity": "medium",
+                "currency": "EUR"
+            },
+            "sar_threshold": {
+                "description": "Suspicious Activity Report threshold",
+                "threshold": 3000,
+                "severity": "high",
+                "currency": "EUR"
+            },
+            "pep_transaction": {
+                "description": "Politically Exposed Person transaction monitoring",
+                "threshold": 1000,
+                "severity": "high",
+                "currency": "EUR"
+            },
+            "high_risk_country": {
+                "description": "High-risk country transaction monitoring",
+                "severity": "critical",
+                "countries": ["Russia", "Iran", "North Korea", "Syria"]
+            }
+        }
         
         for policy_name, policy_data in aml_policies.items():
             with st.expander(f"📋 {policy_data['description']}"):
-                st.write(f"**Threshold:** €{policy_data.get('threshold', 'N/A'):,}")
+                # Handle threshold formatting safely
+                threshold = policy_data.get('threshold')
+                if threshold is not None:
+                    st.write(f"**Threshold:** €{threshold:,}")
+                else:
+                    st.write(f"**Threshold:** N/A")
+                
                 st.write(f"**Severity:** {policy_data.get('severity', 'N/A').upper()}")
                 st.write(f"**Currency:** {policy_data.get('currency', 'EUR')}")
                 

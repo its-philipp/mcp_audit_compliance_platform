@@ -129,11 +129,29 @@ class AuditComplianceMCPServer:
                     # Limit results for API response
                     limited_transactions = transactions[:limit]
                     
+                    # Convert SQLAlchemy objects to dictionaries for JSON serialization
+                    transaction_dicts = []
+                    for transaction in limited_transactions:
+                        transaction_dict = {
+                            "id": transaction.id,
+                            "transaction_id": transaction.transaction_id,
+                            "amount": float(transaction.amount),
+                            "currency": transaction.currency,
+                            "supplier_name": transaction.supplier_name,
+                            "supplier_country": transaction.supplier_country,
+                            "payment_method": transaction.payment_method,
+                            "risk_category": transaction.risk_category,
+                            "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
+                            "description": transaction.description,
+                            "created_at": transaction.created_at.isoformat() if transaction.created_at else None
+                        }
+                        transaction_dicts.append(transaction_dict)
+                    
                     result = {
                         "type": "transactions",
                         "total_count": len(transactions),
                         "returned_count": len(limited_transactions),
-                        "data": limited_transactions,
+                        "data": transaction_dicts,
                         "filters_applied": filters or {},
                         "timestamp": datetime.now().isoformat()
                     }
@@ -142,11 +160,24 @@ class AuditComplianceMCPServer:
                     suppliers = self.db_manager.get_suppliers()
                     limited_suppliers = suppliers[:limit]
                     
+                    # Convert SQLAlchemy objects to dictionaries for JSON serialization
+                    supplier_dicts = []
+                    for supplier in limited_suppliers:
+                        supplier_dict = {
+                            "id": supplier.id,
+                            "name": supplier.supplier_name,
+                            "country": supplier.country,
+                            "risk_category": supplier.risk_category,
+                            "is_pep": supplier.is_pep,
+                            "created_at": supplier.created_at.isoformat() if supplier.created_at else None
+                        }
+                        supplier_dicts.append(supplier_dict)
+                    
                     result = {
                         "type": "suppliers",
                         "total_count": len(suppliers),
                         "returned_count": len(limited_suppliers),
-                        "data": limited_suppliers,
+                        "data": supplier_dicts,
                         "timestamp": datetime.now().isoformat()
                     }
                     
@@ -168,12 +199,12 @@ class AuditComplianceMCPServer:
                 "timestamp": datetime.now().isoformat()
             })
     
-    async def _validate_compliance(self, transactions: List[Dict[str, Any]], policy_type: str) -> str:
+    async def _validate_compliance(self, transactions: List[Dict[str, Any]] = None, policy_type: str = "aml") -> str:
         """Validate transactions against compliance policies."""
         try:
             with self.tracer.trace("mcp_validate_compliance") as span:
                 span.set_attribute("policy_type", policy_type)
-                span.set_attribute("transaction_count", len(transactions))
+                span.set_attribute("transaction_count", len(transactions) if transactions else 0)
                 
                 violations = []
                 
@@ -213,18 +244,34 @@ class AuditComplianceMCPServer:
                 span.set_attribute("include_recommendations", include_recommendations)
                 
                 # Get relevant data based on report type
-                if report_type == "compliance":
-                    transactions = self.db_manager.get_transactions()
-                    violations = self._check_aml_compliance(transactions)
-                elif report_type == "financial":
-                    transactions = self.db_manager.get_transactions()
-                    violations = self._check_financial_compliance(transactions)
-                elif report_type == "risk":
-                    transactions = self.db_manager.get_transactions()
-                    violations = self._check_risk_compliance(transactions)
-                elif report_type == "aml":
-                    transactions = self.db_manager.get_transactions()
-                    violations = self._check_aml_compliance(transactions)
+                if report_type in ["compliance", "financial", "risk", "aml"]:
+                    raw_transactions = self.db_manager.get_transactions()
+                    # Convert SQLAlchemy objects to dictionaries
+                    transactions = []
+                    for transaction in raw_transactions:
+                        transaction_dict = {
+                            "id": transaction.id,
+                            "transaction_id": transaction.transaction_id,
+                            "amount": float(transaction.amount),
+                            "currency": transaction.currency,
+                            "supplier_name": transaction.supplier_name,
+                            "supplier_country": transaction.supplier_country,
+                            "payment_method": transaction.payment_method,
+                            "risk_category": transaction.risk_category,
+                            "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
+                            "description": transaction.description,
+                            "created_at": transaction.created_at.isoformat() if transaction.created_at else None
+                        }
+                        transactions.append(transaction_dict)
+                    
+                    if report_type == "compliance":
+                        violations = self._check_aml_compliance(transactions)
+                    elif report_type == "financial":
+                        violations = self._check_financial_compliance(transactions)
+                    elif report_type == "risk":
+                        violations = self._check_risk_compliance(transactions)
+                    elif report_type == "aml":
+                        violations = self._check_aml_compliance(transactions)
                 else:
                     transactions = []
                     violations = []
@@ -266,7 +313,26 @@ class AuditComplianceMCPServer:
                 span.set_attribute("severity_threshold", severity_threshold)
                 
                 transactions = self.db_manager.get_transactions()
-                violations = self._check_aml_compliance(transactions)
+                
+                # Convert SQLAlchemy objects to dictionaries
+                transaction_dicts = []
+                for transaction in transactions:
+                    transaction_dict = {
+                        "id": transaction.id,
+                        "transaction_id": transaction.transaction_id,
+                        "amount": float(transaction.amount),
+                        "currency": transaction.currency,
+                        "supplier_name": transaction.supplier_name,
+                        "supplier_country": transaction.supplier_country,
+                        "payment_method": transaction.payment_method,
+                        "risk_category": transaction.risk_category,
+                        "transaction_date": transaction.transaction_date.isoformat() if transaction.transaction_date else None,
+                        "description": transaction.description,
+                        "created_at": transaction.created_at.isoformat() if transaction.created_at else None
+                    }
+                    transaction_dicts.append(transaction_dict)
+                
+                violations = self._check_aml_compliance(transaction_dicts)
                 
                 # Filter by severity threshold
                 severity_levels = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -490,22 +556,22 @@ class AuditComplianceMCPServer:
                     "amount": transaction.get("amount"),
                     "currency": transaction.get("currency"),
                     "supplier": transaction.get("supplier_name"),
-                    "country": transaction.get("country"),
+                    "country": transaction.get("supplier_country"),
                     "payment_method": transaction.get("payment_method")
                 })
             
             # High-risk country check
             high_risk_countries = ["North Korea", "Iran", "Syria", "Sudan", "Cuba", "Russia", "Belarus"]
-            if transaction.get("country") in high_risk_countries:
+            if transaction.get("supplier_country") in high_risk_countries:
                 violations.append({
                     "transaction_id": transaction.get("id"),
                     "violation_type": "high_risk_country",
-                    "description": f"Transaction from high-risk country: {transaction.get('country')}",
+                    "description": f"Transaction from high-risk country: {transaction.get('supplier_country')}",
                     "severity": "critical",
                     "amount": transaction.get("amount"),
                     "currency": transaction.get("currency"),
                     "supplier": transaction.get("supplier_name"),
-                    "country": transaction.get("country"),
+                    "country": transaction.get("supplier_country"),
                     "payment_method": transaction.get("payment_method")
                 })
             
@@ -519,7 +585,7 @@ class AuditComplianceMCPServer:
                     "amount": transaction.get("amount"),
                     "currency": transaction.get("currency"),
                     "supplier": transaction.get("supplier_name"),
-                    "country": transaction.get("country"),
+                    "country": transaction.get("supplier_country"),
                     "payment_method": transaction.get("payment_method")
                 })
             
@@ -533,7 +599,7 @@ class AuditComplianceMCPServer:
                     "amount": transaction.get("amount"),
                     "currency": transaction.get("currency"),
                     "supplier": transaction.get("supplier_name"),
-                    "country": transaction.get("country"),
+                    "country": transaction.get("supplier_country"),
                     "payment_method": transaction.get("payment_method")
                 })
         

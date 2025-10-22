@@ -71,7 +71,7 @@ Be thorough in your analysis and provide actionable insights."""),
                 tool_results = {}
                 for tool_name, tool_params in tools_to_use.items():
                     try:
-                        result = await self._execute_tool(tool_name, tool_params)
+                        result = await self._execute_tool(tool_name, tool_params, tool_results)
                         tool_results[tool_name] = result
                     except Exception as e:
                         logger.error(f"Error executing tool {tool_name}: {e}")
@@ -80,13 +80,22 @@ Be thorough in your analysis and provide actionable insights."""),
                 # Use GPT-4 to synthesize the results
                 synthesis_prompt = self._create_synthesis_prompt(user_query, tool_results)
                 
-                chain = self.prompt_template | self.llm
-                response = await asyncio.get_event_loop().run_in_executor(
-                    None, 
-                    lambda: chain.invoke({"user_query": synthesis_prompt})
-                )
-                
-                final_answer = response.content if hasattr(response, 'content') else str(response)
+                # Use a simple approach with the LLM
+                try:
+                    response = await asyncio.get_event_loop().run_in_executor(
+                        None, 
+                        lambda: self.llm.invoke(synthesis_prompt)
+                    )
+                    
+                    final_answer = response.content if hasattr(response, 'content') else str(response)
+                    
+                    # If the response is empty or None, provide a fallback
+                    if not final_answer or final_answer.strip() == "":
+                        final_answer = f"Based on the analysis of {len(tool_results)} MCP tools, I found relevant data for your query: '{user_query}'. The tools executed successfully and returned data, but I need to provide a more detailed analysis. Please check the tool results for specific findings."
+                        
+                except Exception as e:
+                    logger.error(f"Error with LLM: {e}")
+                    final_answer = f"Analysis completed for query: '{user_query}'. MCP tools executed successfully. Error in AI synthesis: {str(e)}"
                 
                 return {
                     "type": "mcp_response",
@@ -143,7 +152,7 @@ Be thorough in your analysis and provide actionable insights."""),
         
         # Check for compliance status
         if any(keyword in user_query_lower for keyword in [
-            "status", "compliant", "non-compliant", "overall"
+            "status", "compliant", "non-compliant", "overall", "check compliance", "compliance status"
         ]):
             tools_to_use["check_compliance_status"] = {
                 "scope": "all",
@@ -152,7 +161,7 @@ Be thorough in your analysis and provide actionable insights."""),
         
         # Check for audit trail requests
         if any(keyword in user_query_lower for keyword in [
-            "trail", "history", "log", "track", "audit trail"
+            "trail", "history", "log", "track", "audit trail", "violations in the last"
         ]):
             tools_to_use["get_audit_trail"] = {
                 "entity_type": "transaction"
@@ -267,14 +276,29 @@ Be thorough in your analysis and provide actionable insights."""),
             "include_recommendations": True
         }
     
-    async def _execute_tool(self, tool_name: str, tool_params: Dict[str, Any]) -> Any:
+    async def _execute_tool(self, tool_name: str, tool_params: Dict[str, Any], previous_results: Dict[str, Any] = None) -> Any:
         """Execute an MCP tool."""
         try:
             if tool_name == "query_financial_data":
                 return await self.mcp_server._query_financial_data(**tool_params)
             elif tool_name == "validate_compliance":
-                # For compliance validation, we need to get transactions first
-                if "transactions" not in tool_params:
+                # For compliance validation, use transactions from previous query_financial_data if available
+                if "transactions" not in tool_params and previous_results and "query_financial_data" in previous_results:
+                    try:
+                        financial_data = json.loads(previous_results["query_financial_data"])
+                        transactions = financial_data.get("data", [])
+                        tool_params["transactions"] = transactions
+                    except Exception as e:
+                        logger.error(f"Error parsing financial data for validate_compliance: {e}")
+                        # Fallback to getting all transactions
+                        financial_result = await self.mcp_server._query_financial_data(
+                            query_type="transactions", 
+                            limit=100
+                        )
+                        financial_data = json.loads(financial_result)
+                        tool_params["transactions"] = financial_data.get("data", [])
+                elif "transactions" not in tool_params:
+                    # Fallback to getting all transactions
                     financial_result = await self.mcp_server._query_financial_data(
                         query_type="transactions", 
                         limit=100
@@ -298,34 +322,49 @@ Be thorough in your analysis and provide actionable insights."""),
     
     def _create_synthesis_prompt(self, user_query: str, tool_results: Dict[str, Any]) -> str:
         """Create a synthesis prompt for GPT-4."""
-        prompt = f"""User Query: {user_query}
+        prompt = f"""Analyze this audit data for query: "{user_query}"
 
-Tool Results:
+Data:
 """
         
         for tool_name, result in tool_results.items():
             prompt += f"\n{tool_name.upper()}:\n"
             if isinstance(result, str):
                 try:
-                    # Try to parse JSON for better formatting
                     parsed_result = json.loads(result)
-                    prompt += json.dumps(parsed_result, indent=2)
+                    
+                    # Create a summary instead of full data
+                    if isinstance(parsed_result, dict):
+                        summary = {}
+                        for key, value in parsed_result.items():
+                            if key == 'data' and isinstance(value, list):
+                                summary[key] = f"{len(value)} items"
+                                if len(value) > 0:
+                                    summary['sample'] = value[0] if len(value) > 0 else None
+                            elif key in ['total_count', 'returned_count', 'type', 'timestamp', 'violations_found', 'total_transactions', 'compliance_status']:
+                                summary[key] = value
+                            elif isinstance(value, (str, int, float, bool)):
+                                summary[key] = value
+                        
+                        prompt += json.dumps(summary, indent=1)
+                    else:
+                        prompt += json.dumps(parsed_result, indent=1)
                 except:
-                    prompt += result
+                    # Truncate string results
+                    prompt += result[:500] + "..." if len(result) > 500 else result
             else:
-                prompt += json.dumps(result, indent=2)
+                prompt += json.dumps(result, indent=1)
         
         prompt += f"""
 
-Please analyze these results and provide a comprehensive answer to the user's query. 
-Include:
-1. Summary of findings
-2. Key insights and patterns
-3. Compliance status and violations (if any)
-4. Recommendations for improvement
-5. Any additional analysis that would be helpful
+Provide analysis:
+1. Summary of findings (use exact numbers from data)
+2. Compliance violations (use exact violation count)
+3. Key insights
+4. Recommendations
+5. Overall status (use exact compliance status)
 
-Be thorough but concise, and always explain what data you used to reach your conclusions."""
+IMPORTANT: Use only the exact numbers and data provided above. Do not make assumptions or use previous data."""
         
         return prompt
     

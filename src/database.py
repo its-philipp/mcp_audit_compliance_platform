@@ -134,6 +134,7 @@ class DatabaseManager:
                         end_date: datetime = None,
                         risk_category: str = None,
                         country: str = None,
+                        payment_method: str = None,
                         limit: int = 100):
         """Retrieve transactions based on filters."""
         query = self.session.query(Transaction)
@@ -152,6 +153,8 @@ class DatabaseManager:
             query = query.filter(Transaction.risk_category == risk_category)
         if country:
             query = query.filter(Transaction.supplier_country == country)
+        if payment_method:
+            query = query.filter(Transaction.payment_method == payment_method)
         
         return query.limit(limit).all()
     

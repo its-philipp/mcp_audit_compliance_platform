@@ -18,6 +18,47 @@ except ImportError as e:
     LANGFUSE_AVAILABLE = False
     print(f"Langfuse import error: {e}")
 
+class TraceContext:
+    """Context manager for tracing operations."""
+    
+    def __init__(self, tracer: 'LangfuseTracer', name: str):
+        self.tracer = tracer
+        self.name = name
+        self.trace = None
+        self.start_time = None
+    
+    def __enter__(self):
+        self.start_time = datetime.utcnow()
+        if self.tracer.enabled and self.tracer.langfuse:
+            try:
+                self.trace = self.tracer.langfuse.start_span(name=self.name)
+            except Exception as e:
+                print(f"Error creating trace: {e}")
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.trace and self.start_time:
+            try:
+                execution_time = (datetime.utcnow() - self.start_time).total_seconds()
+                self.trace.update(
+                    metadata={
+                        "execution_time": execution_time,
+                        "timestamp": self.start_time.isoformat()
+                    }
+                )
+            except Exception as e:
+                print(f"Error updating trace: {e}")
+    
+    def set_attribute(self, key: str, value: Any):
+        """Set a trace attribute."""
+        if self.trace:
+            try:
+                if not hasattr(self.trace, 'metadata'):
+                    self.trace.metadata = {}
+                self.trace.metadata[key] = value
+            except Exception as e:
+                print(f"Error setting trace attribute: {e}")
+
 class LangfuseTracer:
     """Langfuse tracing wrapper for the A2A agent network."""
     
@@ -47,6 +88,10 @@ class LangfuseTracer:
         else:
             print("⚠️ Langfuse not installed. Tracing disabled.")
     
+    def trace(self, name: str):
+        """Create a trace context manager."""
+        return TraceContext(self, name)
+    
     def trace_agent_execution(self, agent_name: str, query: str, response: Any, 
                              execution_time: float, metadata: Dict[str, Any] = None):
         """Trace agent execution."""
@@ -54,7 +99,7 @@ class LangfuseTracer:
             return
         
         try:
-            trace = self.langfuse.trace(
+            trace = self.langfuse.start_span(
                 name=f"{agent_name}_execution",
                 input=query,
                 output=response,
@@ -97,7 +142,7 @@ class LangfuseTracer:
             return
         
         try:
-            trace = self.langfuse.trace(
+            trace = self.langfuse.start_span(
                 name="orchestration_workflow",
                 input=query,
                 output=final_response,
@@ -136,7 +181,7 @@ class LangfuseTracer:
             return
         
         try:
-            trace = self.langfuse.trace(
+            trace = self.langfuse.start_span(
                 name="audit_process",
                 input=audit_query,
                 output={
