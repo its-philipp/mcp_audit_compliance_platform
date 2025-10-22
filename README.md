@@ -295,16 +295,16 @@ For questions, issues, or contributions:
 
 ### Audit Results
 
-#### USA Low-Risk Transaction Analysis
+#### Russia High-Risk Transaction Analysis
 ![Audit Results 1-1](screenshots/3-audit_results1-1.png)
-*Analysis of transactions under €5,000 from USA suppliers with low risk category*
+*Comprehensive analysis of Russia transactions showing 213 violations from 100 transactions*
 
 ![Audit Results 1-2](screenshots/4-audit_results1-2.png)
-*Detailed violation breakdown and compliance status for USA transactions*
+*Detailed violation breakdown and compliance status for Russia transactions*
 
-#### Russia High-Risk Transaction Analysis
+#### USA Low-Risk Transaction Analysis
 ![Audit Results 2](screenshots/5-audit_results2.png)
-*Comprehensive analysis of Russia transactions showing 213 violations from 100 transactions*
+*Analysis of transactions under €5,000 from USA suppliers with low risk category showing 0 violations*
 
 ---
 
